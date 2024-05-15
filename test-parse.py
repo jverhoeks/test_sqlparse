@@ -39,7 +39,7 @@ def parse_ddl(expression):
 
             #ast = qualify_columns(node, schema = None)
             ast = optimize(expression,None)
-            #print(repr(ast))
+            print(repr(ast))
             print(ast.sql())
 
             create_schema: exp.Schema = expression.this
@@ -54,28 +54,57 @@ def parse_ddl(expression):
                     continue
 
                 col['name'] = column_def.name
+                # get the type of the column
                 col['type'] = column_def.kind.this.name
 
-                col['quoted'] = column_def.this.is_string
+                # if string that means spaces or other chars in the fieldname
+                #col['quoted'] = column_def.this.is_string
 
                 for dt in column_def.find_all(exp.DataTypeParam):
-                    col['length'] = int(dt.this.name)
+                    col['maxLength'] = int(dt.this.name)
 
+                if column_def.kind.this.name == "ENUM":
+                    col['enum'] = [x.name for x in column_def.kind.expressions]
+
+                # get the constraints
                 for contraint in column_def.constraints:
                     #print(repr(contraint.kind))
-                    col['primary_key'] = isinstance(contraint.kind,exp.PrimaryKeyColumnConstraint)
-                    col['nullable'] = not isinstance(contraint.kind,exp.NotNullColumnConstraint)
-                    col['default'] = isinstance(contraint.kind,exp.DefaultColumnConstraint)
+                    col['primary'] = isinstance(contraint.kind,exp.PrimaryKeyColumnConstraint)
+                    col['required'] = isinstance(contraint.kind,exp.NotNullColumnConstraint)
+                    col['unique'] = isinstance(contraint.kind,exp.UniqueColumnConstraint)
+
+                    if isinstance(contraint.kind,exp.CommentColumnConstraint):
+                        col['description'] = contraint.kind.name
+
+                    if isinstance(contraint.kind,exp.DefaultColumnConstraint):
+                        col['default'] = contraint.kind.name
 
 
+                # fields/items)
                 print(col)
 
+
+# Unicode character sequence: string, text, varchar
+# Any numeric type, either integers or floating point numbers: number, decimal, numeric
+# 32-bit signed integer: int, integer
+# 64-bit signed integer: long, bigint
+# Single precision (32-bit) IEEE 754 floating-point number: float
+# Double precision (64-bit) IEEE 754 floating-point number: double
+# Binary value: boolean
+# Timestamp with timezone: timestamp, timestamp_tz
+# Timestamp with no timezone: timestamp_ntz
+# Date with no time information: date
+# Array: array
+# Sequence of 8-bit unsigned bytes: bytes
+# Complex type: object, record, struct
+# No value: null
 
 
 def main():
     parse_sql("data.sql","postgresql")
     parse_sql("snowflake.sql","snowflake")
     parse_sql("athena.sql","athena")
+    parse_sql("mysql.sql","mysql")
 
 if __name__ == "__main__":
     main()
